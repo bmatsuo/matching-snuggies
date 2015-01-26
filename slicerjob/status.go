@@ -19,6 +19,10 @@ const (
 	Invalid
 )
 
+func (s Status) IsWaiting() bool {
+	return s == Accepted || s == Processing
+}
+
 // IsValid returns true if s is one of the defined Status constants
 // excluding Invalid.
 func (s Status) IsValid() bool {

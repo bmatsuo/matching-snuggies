@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gophergala/matching-snuggies/slicerjob"
+	"github.com/bmatsuo/matching-snuggies/slicerjob"
 )
 
 func main() {
@@ -74,7 +74,7 @@ func main() {
 	maxTick := time.Second * 5
 	currentTick := 100 * time.Millisecond
 	tick := time.After(currentTick)
-	for job.Status != slicerjob.Complete {
+	for !job.Status.IsWaiting() {
 		select {
 		case s := <-sig:
 			// stop intercepting signals. if the job cancellation is taking too
@@ -109,8 +109,11 @@ func main() {
 	// gracefully while reading gcode from the server.
 	signal.Stop(sig)
 
+	if job.Status == slicerjob.Failed || job.Status == slicerjob.Cancelled {
+		log.Fatalf("job %v", job.Status)
+	}
+
 	// download gcode from the slicer and write to the specified file.
-	log.Printf("retreiving gcode file")
 	r, err := client.GCode(job)
 	if err != nil {
 		log.Fatalf("gcode: %v", err)

@@ -11,8 +11,8 @@ type Job struct {
 }
 
 type SlicerPreset struct {
-	Slicer  string   `json:slicer`
-	Presets []string `json:presets`
+	Slicer  string   `json:"slicer"`
+	Presets []string `json:"presets"`
 }
 
 // New creates a new Job with a random UUID for an ID.  If urlformat is
