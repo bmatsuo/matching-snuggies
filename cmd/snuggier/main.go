@@ -31,6 +31,7 @@ import (
 
 func main() {
 	server := flag.String("server", "localhost:8888", "snuggied server address")
+	verbose := flag.Bool("-v", false, "verbose logging")
 	slicerBackend := flag.String("backend", "slic3r", "backend slicer")
 	slicerPreset := flag.String("preset", "hq", "specify a configuration preset for the backend")
 	presets := flag.Bool("L", false, "get list of available configuration presets for Slic3r")
@@ -39,6 +40,12 @@ func main() {
 
 	client := &Client{
 		ServerAddr: *server,
+	}
+
+	if *verbose {
+		client.RequestLog = func(method, url string) {
+			log.Printf("HTTP %s %s", method, url)
+		}
 	}
 
 	if *presets == true {
@@ -74,7 +81,12 @@ func main() {
 	maxTick := time.Second * 5
 	currentTick := 100 * time.Millisecond
 	tick := time.After(currentTick)
-	for !job.Status.IsWaiting() {
+	status := slicerjob.Status(-1)
+	for job.Status.IsWaiting() {
+		if status != job.Status {
+			log.Printf("status=%s", job.Status)
+			status = job.Status
+		}
 		select {
 		case s := <-sig:
 			// stop intercepting signals. if the job cancellation is taking too
@@ -96,15 +108,19 @@ func main() {
 				log.Fatalf("waiting: %v", err)
 			}
 
-			if currentTick < maxTick {
-				currentTick *= 2
-			}
+			currentTick *= 2
 			if currentTick > maxTick {
 				currentTick = maxTick
 			}
 			tick = time.After(currentTick)
 		}
 	}
+	if job.GCodeURL != "" {
+		log.Printf("status=%s gcode=%v", job.Status, job.GCodeURL)
+	} else {
+		log.Printf("status=%s")
+	}
+
 	// stop intercepting signals because it because much more difficult to stop
 	// gracefully while reading gcode from the server.
 	signal.Stop(sig)
@@ -127,13 +143,14 @@ func main() {
 		if err != nil {
 			log.Panic(err)
 		}
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				log.Panic(err)
+			}
+		}()
+		log.Printf("writing output to %q", *gcodeDest)
 	}
-	defer func() {
-		err := f.Close()
-		if err != nil {
-			log.Panic(err)
-		}
-	}()
 	_, err = io.Copy(f, r)
 	if err != nil {
 		log.Panic(err)
@@ -144,6 +161,13 @@ type Client struct {
 	Client     *http.Client
 	ServerAddr string
 	HTTPS      bool
+	RequestLog func(method, url string)
+}
+
+func (c *Client) logHTTP(method, url string) {
+	if c.RequestLog != nil {
+		c.RequestLog(method, url)
+	}
 }
 
 // SliceFiles tells the server to slice the specified paths.
@@ -181,7 +205,7 @@ func (c *Client) SliceFile(backend, preset string, path string) (*slicerjob.Job,
 		return nil, fmt.Errorf("tempfile: %v", err)
 	}
 	url := c.url("/slicer/jobs")
-	log.Printf("POST %v", url)
+	c.logHTTP("POST", url)
 	resp, err := c.client().Post(url, bodyw.FormDataContentType(), tmp)
 	if err != nil {
 		return nil, fmt.Errorf("POST /slicer/jobs: %v", err)
@@ -222,7 +246,7 @@ func (c *Client) Cancel(job *slicerjob.Job) error {
 		return fmt.Errorf("job missing id")
 	}
 	url := c.url("/slicer/jobs/" + job.ID)
-	log.Printf("DELETE %v", url)
+	c.logHTTP("DELETE", url)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return fmt.Errorf("request: %v", err)
@@ -240,7 +264,7 @@ func (c *Client) Cancel(job *slicerjob.Job) error {
 
 func (c *Client) SlicerPresets() ([]string, error) {
 	url := c.url("/slicer/presets/slic3r")
-	//log.Printf("GET %v", url)
+	c.logHTTP("GET", url)
 	resp, err := c.client().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/presets/slic3r: %v", err)
@@ -266,7 +290,7 @@ func (c *Client) SlicerStatus(job *slicerjob.Job) (*slicerjob.Job, error) {
 	}
 	var jobcurr *slicerjob.Job
 	url := c.url("/slicer/jobs/" + job.ID)
-	log.Printf("GET %v", url)
+	c.logHTTP("GET", url)
 	resp, err := c.client().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/jobs/: %v", err)
@@ -285,7 +309,7 @@ func (c *Client) SlicerStatus(job *slicerjob.Job) (*slicerjob.Job, error) {
 // GCode requests the gcode for job.
 func (c *Client) GCode(job *slicerjob.Job) (io.ReadCloser, error) {
 	url := c.url("/slicer/gcodes/" + job.ID)
-	log.Printf("GET %v", url)
+	c.logHTTP("GET", url)
 	resp, err := c.client().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/codes/: %v", err)
