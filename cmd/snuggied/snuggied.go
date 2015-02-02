@@ -267,7 +267,6 @@ func (srv *SnuggieServer) registerJob(meshfile multipart.File, header *multipart
 	err = srv.S.ScheduleSliceJob(job.ID, url, slicerBackend, preset)
 	if err != nil {
 		os.Remove(path)
-		DeleteGCodeFile(job.ID)
 		DeleteJob(job.ID)
 		return nil, err
 	}
@@ -332,7 +331,7 @@ func (srv *SnuggieServer) JobDone(id, path string, err error) {
 	job.GCodeURL = srv.url("/gcodes/" + id)
 	job.Progress = 1.0
 	job.Updated = &now
-	job.Completed = &now
+	job.Terminated = &now
 
 	err = PutJob(id, job)
 	if err != nil {
@@ -451,8 +450,36 @@ func main() {
 	// capable of serving the result. this would be most problematic if binding
 	// the address fails.
 	go srv.RunConsumer()
+
+	// run the garbage collector every minute, deleting objects which are more
+	// than one hour old.
+	gctrigger := make(chan struct{}, 1)
+	gctrigger <- struct{}{}
+	go gcLoop(time.Minute, 5*time.Minute, gctrigger)
+
 	log.Printf("machine %s binding to %s", *machineID, *httpAddr)
 	log.Fatal(http.ListenAndServe(*httpAddr, nil))
+}
+
+func gcLoop(delay, staleness time.Duration, trigger <-chan struct{}) {
+	ticker := time.NewTicker(delay)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+		case <-trigger:
+		}
+		err := RemoveFiles(delay/2, 1000)
+		if err != nil {
+			log.Printf("remove: %v", err)
+			// don't do anything special about errors removing files the
+			// logging is specific enough for the user to handle anything.
+		}
+		err = DeleteOldJobs(time.Now().Add(-staleness), delay/2, 1000)
+		if err != nil {
+			log.Printf("gc: %v", err)
+		}
+	}
 }
 
 func pathIsDir(path string) error {

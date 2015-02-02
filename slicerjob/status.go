@@ -19,6 +19,24 @@ const (
 	Invalid
 )
 
+var statusStrings = []string{
+	Accepted:   "accepted",
+	Processing: "processing",
+	Complete:   "complete",
+	Failed:     "failed",
+	Cancelled:  "cancelled",
+	Invalid:    "INVALIDSTATUS",
+}
+
+var statusParse = map[string]Status{
+	statusStrings[Accepted]:   Accepted,
+	statusStrings[Processing]: Processing,
+	statusStrings[Complete]:   Complete,
+	statusStrings[Cancelled]:  Cancelled,
+	statusStrings[Failed]:     Failed,
+	statusStrings[Invalid]:    Invalid,
+}
+
 func (s Status) IsWaiting() bool {
 	return s == Accepted || s == Processing
 }
@@ -54,27 +72,10 @@ func (s Status) String() string {
 	return statusStrings[s]
 }
 
-var statusStrings = []string{
-	Accepted:   "accepted",
-	Processing: "processing",
-	Complete:   "complete",
-	Failed:     "failed",
-	Cancelled:  "cancelled",
-	Invalid:    "INVALIDSTATUS",
-}
-
 // ParseString returns the Status from its string representation, str.
 func ParseStatus(str string) (Status, error) {
 	if s, ok := statusParse[str]; ok {
 		return s, nil
 	}
 	return Invalid, fmt.Errorf("invalid status")
-}
-
-var statusParse = map[string]Status{
-	statusStrings[Accepted]:   Accepted,
-	statusStrings[Processing]: Processing,
-	statusStrings[Complete]:   Complete,
-	statusStrings[Failed]:     Failed,
-	statusStrings[Invalid]:    Invalid,
 }
