@@ -1,12 +1,16 @@
 #!/bin/bash
 
-if [ -z $(which godep) ]; then
-    echo >&2 "install godep before building"
+GO="go"
+if [ -n $(which godep) ]; then
+    echo >&2 "building with godep"
+    GO="godep go"
+else
+    echo >&2 "you should install godep"
     echo >&2
     echo >&2 "    go get github.com/tools/godep"
     echo >&2
-    exit 1
+    echo >&2 "attempting to build anyway..."
 fi
 
-godep go build -o bin/snuggied ./cmd/snuggied
-godep go build -o bin/snuggier ./cmd/snuggier
+$GO build -o bin/snuggied ./cmd/snuggied
+$GO build -o bin/snuggier ./cmd/snuggier
