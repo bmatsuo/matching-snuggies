@@ -41,7 +41,7 @@ gcode, and getting periodic status updates while slicing is in progress.
 ```
 
 See the snuggied documentation on
-[godoc.org](http://godoc.org/github.com/gophergala/matching-snuggies/cmd/snuggied)
+[godoc.org](http://godoc.org/github.com/bmatsuo/matching-snuggies/cmd/snuggied)
 or the API [doc](API.md) for information about each endpoint.
 
 Command line tool
@@ -63,7 +63,7 @@ When `snuggied` is running on another host specify the server when calling `snug
 You can load the resulting FirstCube.gcde into your host software for 3D printing.
 
 See the snuggier command documentation on godoc.org
-[godoc.org](http://godoc.org/github.com/gophergala/matching-snuggies/cmd/snuggier).
+[godoc.org](http://godoc.org/github.com/bmatsuo/matching-snuggies/cmd/snuggier).
 
 Long term goals
 ---------------

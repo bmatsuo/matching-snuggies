@@ -30,7 +30,7 @@ import (
 
 	"flag"
 
-	"github.com/gophergala/matching-snuggies/slicerjob"
+	"github.com/bmatsuo/matching-snuggies/slicerjob"
 )
 
 type SnuggieServer struct {

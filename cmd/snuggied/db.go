@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bmatsuo/matching-snuggies/slicerjob"
 	"github.com/boltdb/bolt"
-	"github.com/gophergala/matching-snuggies/slicerjob"
 )
 
 func b(s string) []byte {
