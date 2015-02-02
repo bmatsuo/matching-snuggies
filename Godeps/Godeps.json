@@ -1,0 +1,19 @@
+{
+	"ImportPath": "github.com/bmatsuo/matching-snuggies",
+	"GoVersion": "go1.4.1",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-10",
+			"Rev": "5fac954758f5aa282478dc07fbb8709fe9575184"
+		},
+		{
+			"ImportPath": "github.com/boltdb/bolt",
+			"Comment": "v1.0-24-g681a5db",
+			"Rev": "681a5db8f6c8cb597367cbbd0f590de716c0c550"
+		}
+	]
+}
