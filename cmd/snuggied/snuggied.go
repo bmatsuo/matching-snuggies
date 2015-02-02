@@ -17,6 +17,7 @@ Call snuggied with the -h flag to see available command line configuration.
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,10 +58,10 @@ func (srv *SnuggieServer) RegisterHandlers(mux *http.ServeMux) http.Handler {
 		switch r.Method {
 		case "POST":
 			srv.CreateJob(w, r)
-		// TODO:
-		// GET handler (index)
+		case "GET":
+			srv.ListJobs(w, r)
 		default:
-			http.Error(w, "only POST is allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "only GET, POST are allowed", http.StatusMethodNotAllowed)
 		}
 	})
 	mux.HandleFunc(srv.route("/jobs/"), func(w http.ResponseWriter, r *http.Request) {
@@ -167,6 +169,71 @@ func (srv *SnuggieServer) GetPresets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonPresets)
+}
+
+func (srv *SnuggieServer) ListJobs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	var limit int
+	var err error
+	if limstr := q.Get("limit"); limstr != "" {
+		limit, err = strconv.Atoi(limstr)
+		if err != nil {
+			http.Error(w, "limit: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if limit <= 0 {
+			http.Error(w, "limit: not a positive number", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var cursor []byte
+	if curstr := q.Get("cursor"); curstr != "" {
+		var err error
+		cursor, err = base64.URLEncoding.DecodeString(curstr)
+		if err != nil {
+			http.Error(w, "cursor: invalid cursor", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var filters []func(job *slicerjob.Job) error
+	var status slicerjob.Status
+	if statstr := q.Get("status"); statstr != "" {
+		status, err = slicerjob.ParseStatus(statstr)
+		if err != nil {
+			http.Error(w, "status: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filters = append(filters, func(job *slicerjob.Job) error {
+			if job.Status != status {
+				return ErrSkip
+			}
+			return nil
+		})
+	}
+
+	filter := func(job *slicerjob.Job) error {
+		for _, fn := range filters {
+			err := fn(job)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	jobs, cursor, err := ListJobs(100*time.Millisecond, limit, cursor, filter)
+	if err == ErrExceededMaxDur {
+		err = nil
+	} else if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	page := slicerjob.JobPage(cursor, jobs)
+	err = json.NewEncoder(w).Encode(page)
+	if err != nil {
+		log.Printf("encode: %v", err)
+	}
 }
 
 func (srv *SnuggieServer) GetJob(w http.ResponseWriter, r *http.Request) {

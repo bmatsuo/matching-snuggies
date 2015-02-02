@@ -198,6 +198,69 @@ func deleteJob(tx *bolt.Tx, id string) error {
 var ErrMaxDeleted = fmt.Errorf("maximum amount deleted")
 var ErrExceededMaxDur = fmt.Errorf("exceeded maximum duration")
 
+var ErrStop = fmt.Errorf("stop")
+var ErrSkip = fmt.Errorf("skip")
+
+func ListJobs(maxDur time.Duration, limit int, seek []byte, filter func(job *slicerjob.Job) error) ([]*slicerjob.Job, []byte, error) {
+	var jobs []*slicerjob.Job
+	var timeout <-chan time.Time
+	var istimeout bool
+	if maxDur > 0 {
+		timeout = time.After(maxDur)
+	}
+	var key []byte
+	err := DB.View(func(tx *bolt.Tx) error {
+		cur := tx.Bucket(b(dbJobs)).Cursor()
+		var val []byte
+		defer func() {
+			if key != nil {
+				key = append([]byte(nil), key...)
+			}
+		}()
+		for key, val = cur.Seek(seek); key != nil; key, val = cur.Next() {
+			select {
+			case <-timeout:
+				istimeout = true
+				break
+			default:
+			}
+			var job *slicerjob.Job
+			err := json.Unmarshal(val, &job)
+			if err != nil {
+				log.Printf("unmarshal job %q: %v", key, err)
+				continue
+			}
+			err = filter(job)
+			if err == ErrSkip {
+				continue
+			}
+			if err == ErrStop {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			jobs = append(jobs, job)
+			if limit > 0 && len(jobs) >= limit {
+				break
+			}
+		}
+		return nil
+	})
+	if key != nil {
+		seek = append(key, 0)
+	} else {
+		seek = nil
+	}
+	if err != nil {
+		return jobs, seek, err
+	}
+	if istimeout {
+		return jobs, seek, ErrExceededMaxDur
+	}
+	return jobs, seek, err
+}
+
 func DeleteOldJobs(termBefore time.Time, maxDur time.Duration, maxDel int) error {
 	numDel := 0
 	var timeout <-chan time.Time
