@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GO="go"
-if [ -n $(which godep) ]; then
+if which godep > /dev/null; then
     echo >&2 "building with godep"
     GO="godep go"
 else
