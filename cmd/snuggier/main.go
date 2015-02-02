@@ -31,7 +31,7 @@ import (
 
 func main() {
 	server := flag.String("server", "localhost:8888", "snuggied server address")
-	verbose := flag.Bool("-v", false, "verbose logging")
+	verbose := flag.Bool("v", false, "verbose logging")
 	slicerBackend := flag.String("backend", "slic3r", "backend slicer")
 	slicerPreset := flag.String("preset", "hq", "specify a configuration preset for the backend")
 	presets := flag.Bool("L", false, "get list of available configuration presets for Slic3r")
