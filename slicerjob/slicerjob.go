@@ -1,13 +1,20 @@
 package slicerjob
 
-import "code.google.com/p/go-uuid/uuid"
+import (
+	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+)
 
 type Job struct {
-	ID       string  `json:"id"`
-	Status   Status  `json:"status"`
-	Progress float64 `json:"progress"`
-	URL      string  `json:"url"`
-	GCodeURL string  `json:"gcode_url"`
+	ID        string     `json:"id"`
+	Status    Status     `json:"status"`
+	Progress  float64    `json:"progress"`
+	URL       string     `json:"url"`
+	GCodeURL  string     `json:"gcode_url"`
+	Created   *time.Time `json:"created_time,omitempty"`
+	Updated   *time.Time `json:"updated_time,omitempty"`
+	Completed *time.Time `json:"completed_time,omitempty"`
 }
 
 type SlicerPreset struct {
@@ -21,5 +28,7 @@ type SlicerPreset struct {
 func New() *Job {
 	job := new(Job)
 	job.ID = uuid.New()
+	now := time.Now()
+	job.Created = &now
 	return job
 }

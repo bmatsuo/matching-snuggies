@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"flag"
 
@@ -314,9 +315,12 @@ func (srv *SnuggieServer) JobDone(id, path string, err error) {
 		return
 	}
 
+	now := time.Now()
+
 	err = PutGCodeFile(id, path)
 	if err != nil {
 		log.Printf("can't put gcode file path into database: %v", err)
+		return
 	}
 
 	job, err := ViewJob(id)
@@ -327,10 +331,13 @@ func (srv *SnuggieServer) JobDone(id, path string, err error) {
 	job.Status = slicerjob.Complete
 	job.GCodeURL = srv.url("/gcodes/" + id)
 	job.Progress = 1.0
+	job.Updated = &now
+	job.Completed = &now
 
 	err = PutJob(id, job)
 	if err != nil {
 		log.Printf("Can't put job to database:%v err:%v", id, err)
+		return
 	}
 
 	log.Printf("completed job:%v gcode:%v", id, path)

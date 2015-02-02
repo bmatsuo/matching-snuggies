@@ -43,8 +43,16 @@ func main() {
 	}
 
 	if *verbose {
-		client.RequestLog = func(method, url string) {
-			log.Printf("HTTP %s %s", method, url)
+		client.RequestLog = func(r *Response) {
+			if r.Err != nil {
+				log.Printf("HTTP %s %s %v", r.Method, r.URL, r.Err)
+				return
+			}
+			if r.Data != nil {
+				log.Printf("HTTP %s %s %v (%v)\n%v", r.Method, r.URL, r.Dur, r.Response.Status, r.Data)
+				return
+			}
+			log.Printf("HTTP %s %s %v (%v)", r.Method, r.URL, r.Dur, r.Response.Status)
 		}
 	}
 
@@ -161,12 +169,64 @@ type Client struct {
 	Client     *http.Client
 	ServerAddr string
 	HTTPS      bool
-	RequestLog func(method, url string)
+	RequestLog func(*Response)
 }
 
-func (c *Client) logHTTP(method, url string) {
+type Response struct {
+	URL      string
+	Method   string
+	Err      error
+	Response *http.Response
+	Dur      time.Duration
+	Data     interface{}
+}
+
+func (c *Client) get(url string) (*http.Response, error, *Response) {
+	start := time.Now()
+	resp, err := c.client().Get(url)
+	return resp, err, &Response{
+		URL:      url,
+		Method:   "GET",
+		Err:      err,
+		Response: resp,
+		Dur:      time.Since(start),
+	}
+}
+func (c *Client) del(url string) (*http.Response, error, *Response) {
+	start := time.Now()
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("request: %v", err), &Response{
+			URL:    url,
+			Method: "DELETE",
+			Err:    err,
+			Dur:    time.Since(start),
+		}
+	}
+	resp, err := c.client().Do(req)
+	return resp, err, &Response{
+		URL:      url,
+		Method:   "DELETE",
+		Err:      err,
+		Response: resp,
+		Dur:      time.Since(start),
+	}
+}
+func (c *Client) post(url, contentType string, r io.Reader) (*http.Response, error, *Response) {
+	start := time.Now()
+	resp, err := c.client().Post(url, contentType, r)
+	return resp, err, &Response{
+		URL:      url,
+		Method:   "POST",
+		Err:      err,
+		Response: resp,
+		Dur:      time.Since(start),
+	}
+}
+
+func (c *Client) logHTTP(r *Response) {
 	if c.RequestLog != nil {
-		c.RequestLog(method, url)
+		c.RequestLog(r)
 	}
 }
 
@@ -205,17 +265,20 @@ func (c *Client) SliceFile(backend, preset string, path string) (*slicerjob.Job,
 		return nil, fmt.Errorf("tempfile: %v", err)
 	}
 	url := c.url("/slicer/jobs")
-	c.logHTTP("POST", url)
-	resp, err := c.client().Post(url, bodyw.FormDataContentType(), tmp)
+	resp, err, r := c.post(url, bodyw.FormDataContentType(), tmp)
+	defer c.logHTTP(r)
 	if err != nil {
 		return nil, fmt.Errorf("POST /slicer/jobs: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		return nil, httpStatusError(resp)
+		err := httpStatusError(resp)
+		r.Data = err
+		return nil, err
 	}
 	err = json.NewDecoder(resp.Body).Decode(&job)
 	if err != nil {
+		r.Data = err
 		return nil, fmt.Errorf("response: %v", err)
 	}
 	return job, nil
@@ -246,39 +309,43 @@ func (c *Client) Cancel(job *slicerjob.Job) error {
 		return fmt.Errorf("job missing id")
 	}
 	url := c.url("/slicer/jobs/" + job.ID)
-	c.logHTTP("DELETE", url)
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return fmt.Errorf("request: %v", err)
-	}
-	resp, err := c.client().Do(req)
+
+	resp, err, r := c.del(url)
+	defer c.logHTTP(r)
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return httpStatusError(resp)
+		err := httpStatusError(resp)
+		r.Data = err
+		return err
 	}
 	return nil
 }
 
 func (c *Client) SlicerPresets() ([]string, error) {
 	url := c.url("/slicer/presets/slic3r")
-	c.logHTTP("GET", url)
-	resp, err := c.client().Get(url)
+	resp, err, r := c.get(url)
+	defer c.logHTTP(r)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/presets/slic3r: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, httpStatusError(resp)
+		err := httpStatusError(resp)
+		r.Data = err
+		return nil, err
 	}
 	preset := new(slicerjob.SlicerPreset)
 	err = json.NewDecoder(resp.Body).Decode(preset)
 	if err != nil {
+		r.Data = err
 		return nil, fmt.Errorf("GET /slicer/presets/slic3r: %v", err)
 	}
+	r.Data = preset
 
 	return preset.Presets, nil
 }
@@ -290,32 +357,45 @@ func (c *Client) SlicerStatus(job *slicerjob.Job) (*slicerjob.Job, error) {
 	}
 	var jobcurr *slicerjob.Job
 	url := c.url("/slicer/jobs/" + job.ID)
-	c.logHTTP("GET", url)
-	resp, err := c.client().Get(url)
+	resp, err, r := c.get(url)
+	defer c.logHTTP(r)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/jobs/: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, httpStatusError(resp)
+		err := httpStatusError(resp)
+		r.Data = err
+		return nil, err
 	}
+
 	err = json.NewDecoder(resp.Body).Decode(&jobcurr)
 	if err != nil {
+		r.Data = err
 		return nil, fmt.Errorf("response: %v", err)
 	}
+	js, err := json.Marshal(jobcurr)
+	if err != nil {
+		log.Printf("bizarre json marshal error: %v", err)
+	}
+	r.Data = string(js)
+
 	return jobcurr, nil
 }
 
 // GCode requests the gcode for job.
 func (c *Client) GCode(job *slicerjob.Job) (io.ReadCloser, error) {
 	url := c.url("/slicer/gcodes/" + job.ID)
-	c.logHTTP("GET", url)
-	resp, err := c.client().Get(url)
+	resp, err, r := c.get(url)
+	defer c.logHTTP(r)
 	if err != nil {
 		return nil, fmt.Errorf("GET /slicer/codes/: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, httpStatusError(resp)
+		err := httpStatusError(resp)
+		r.Data = err
+		return nil, err
 	}
 	return resp.Body, nil
 }
@@ -348,7 +428,7 @@ func IsMeshFile(path string) bool {
 func httpStatusError(resp *http.Response) error {
 	p, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 85))
 	msg := trimMessage(string(p), 80)
-	return fmt.Errorf("http %d %s: %q", resp.StatusCode, http.StatusText(resp.StatusCode), msg)
+	return fmt.Errorf("http %s: %q", resp.Status, msg)
 }
 
 func trimMessage(s string, n int) string {
