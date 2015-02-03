@@ -10,13 +10,11 @@ client to retreive as a GET.  Clients periodically poll the server during
 slicing for status updates.  Clients may cancel an in-progress slicing job at
 any point by issuing a DELETE request.
 
-Call snuggied with the -h flag to see available command line configuration.
+The snuggied HTTP API is documented here. For configuration information call
+snuggied with the -h flag.
 
 	snuggied -h
 
-API Documentation
-
-An HTTP API is exposed by snuggied for clients (snuggier) to use.
 
 Create a job
 
@@ -35,6 +33,7 @@ slice.
 
 		slicerjob.Job
 
+
 List jobs
 
 The client may use this if interested in the status of multiple jobs.
@@ -45,6 +44,7 @@ The client may use this if interested in the status of multiple jobs.
 	Content-Type: application/json
 
 		slicerjob.Page of []slicerjob.Job
+
 
 Get a job's status
 
@@ -58,6 +58,7 @@ progress.
 
 		slicerjob.Job
 
+
 Cancel a job
 
 Cancelling a job removes it from internal queues and terminates the backend
@@ -66,6 +67,7 @@ slicing procedure if it has already begun.
 	DELETE /slicer/jobs/{id}
 
 	200 OK
+
 
 Retrieve final g-code
 
@@ -76,6 +78,7 @@ key.
 
 	200 OK
 	Content-Type: application/octet-stream
+
 
 Retrieve an original mesh file
 
@@ -89,7 +92,11 @@ The mesh file originally given to a job. not in the critical path of printing.
 The contents of the original 3D mesh file are returned.  The content-type may
 be more specific when the file has a known media type.
 
+
 List backend presets
+
+Clients may provide a level of dynamic discovery by detecting presets for the
+slicer.
 
 	GET /slicer/presets/{slicer}
 
