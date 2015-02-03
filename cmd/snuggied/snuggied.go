@@ -305,7 +305,7 @@ func (srv *SnuggieServer) registerJob(meshfile multipart.File, header *multipart
 	job.Progress = 0.0
 	job.URL = srv.url("/jobs/" + job.ID)
 
-	//if location flag not set, default temp file location is used
+	// if DataDir is empty the file will be in the working directory.
 	ext := filepath.Ext(header.Filename)
 	path := filepath.Join(srv.DataDir, job.ID+ext)
 	f, err := os.Create(path)
