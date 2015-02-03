@@ -34,6 +34,7 @@ import (
 	"flag"
 
 	"github.com/bmatsuo/matching-snuggies/slicerjob"
+	"github.com/facebookgo/flagenv"
 )
 
 type SnuggieServer struct {
@@ -453,9 +454,29 @@ func main() {
 	machineID := flag.String("name", "snuggied0", "machine name for clustering")
 	slic3rBin := flag.String("slic3r.bin", "", "specify slic3r location")
 	slic3rConfigDir := flag.String("slic3r.configs", ".", "specify a directory with slic3r preset configurations")
-	dataDir := flag.String("data", "/tmp", "location for database, .stl, .gcode")
+	dataDir := flag.String("data", "", "location for database, .stl, .gcode")
 	httpAddr := flag.String("http", ":8888", "address to serve traffic")
 	baseURL := flag.String("baseurl", "", "links and redirection go to the specified base url")
+	flagenv.Prefix = "SNUGGIED_"
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: %s [flags]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "flags are:\n")
+		flag.PrintDefaults()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "%s can also be configured though the environment. for example\n", os.Args[0])
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "  SNUGGIED_SLIC3R_CONFIGS=./testdata/ %s", os.Args[0])
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "instead of")
+		fmt.Fprintln(os.Stderr)
+
+		fmt.Fprintf(os.Stderr, "  %s -slic3r.configs=./testdata/\n", os.Args[0])
+		fmt.Fprintln(os.Stderr)
+
+	}
+	flagenv.Parse()
 	flag.Parse()
 
 	pathPrefix := "/slicer"
@@ -471,6 +492,18 @@ func main() {
 			urlHostPort = "localhost" + urlHostPort
 		}
 		*baseURL = "http://" + urlHostPort
+	}
+
+	if *dataDir == "" {
+		home := os.Getenv("HOME")
+		if home == "" {
+			log.Fatalf("data: unable to locate home directory")
+		}
+		*dataDir = filepath.Join(home, ".local", "share", "matching-snuggies", "data")
+		err := os.MkdirAll(*dataDir, 0755)
+		if err != nil {
+			log.Fatalf("data: %v", err)
+		}
 	}
 
 	// make sure that dataDir is a directory and that it's path is absolute.
@@ -493,11 +526,16 @@ func main() {
 	}
 
 	DB = loadDB(filepath.Join(*dataDir, "snuggied.boltdb"))
+	fileroot := filepath.Join(*dataDir, "snuggied-files")
+	err = os.MkdirAll(fileroot, 0750)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	srv := &SnuggieServer{
 		BaseURL:       *baseURL,
 		Prefix:        pathPrefix,
-		DataDir:       *dataDir,
+		DataDir:       fileroot,
 		Slic3r:        *slic3rBin,
 		Slic3rPresets: slic3rPresets,
 	}

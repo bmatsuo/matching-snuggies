@@ -14,6 +14,10 @@
 			"ImportPath": "github.com/boltdb/bolt",
 			"Comment": "v1.0-24-g681a5db",
 			"Rev": "681a5db8f6c8cb597367cbbd0f590de716c0c550"
+		},
+		{
+			"ImportPath": "github.com/facebookgo/flagenv",
+			"Rev": "5aef1335e5157932f97febbcb3beb665861caec8"
 		}
 	]
 }
