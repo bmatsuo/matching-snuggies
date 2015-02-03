@@ -13,6 +13,91 @@ any point by issuing a DELETE request.
 Call snuggied with the -h flag to see available command line configuration.
 
 	snuggied -h
+
+API Documentation
+
+An HTTP API is exposed by snuggied for clients (snuggier) to use.
+
+Create a job
+
+The job begins with the client supplying a 3D mesh file for the server to
+slice.
+
+	POST /slicer/jobs
+	Content-Type: muiltpart/form-data
+
+		meshfile  3D mesh file (stl or amf)
+		slicer    backend slicer program (only "slic3r" supported currently)
+		preset    name of a preset backend configuration
+
+	201 Created
+	Content-Type: application/json
+
+		slicerjob.Job
+
+List jobs
+
+The client may use this if interested in the status of multiple jobs.
+
+	GET /slicer/jobs
+
+	200 OK
+	Content-Type: application/json
+
+		slicerjob.Page of []slicerjob.Job
+
+Get a job's status
+
+Until the backend slicer has completed the client polls the job's status for
+progress.
+
+	GET /slicer/jobs/{id}
+
+	200 OK
+	Content-Type: application/json
+
+		slicerjob.Job
+
+Cancel a job
+
+Cancelling a job removes it from internal queues and terminates the backend
+slicing procedure if it has already begun.
+
+	DELETE /slicer/jobs/{id}
+
+	200 OK
+
+Retrieve final g-code
+
+After a job completes it's g-code output is available using the job id as a
+key.
+
+	GET /slicer/gcodes/{id}
+
+	200 OK
+	Content-Type: application/octet-stream
+
+Retrieve an original mesh file
+
+The mesh file originally given to a job. not in the critical path of printing.
+
+	GET /slicer/meshes/{id}
+
+	200 OK
+	Content-Type: application/octet-stream
+
+The contents of the original 3D mesh file are returned.  The content-type may
+be more specific when the file has a known media type.
+
+List backend presets
+
+	GET /slicer/presets/{slicer}
+
+	200 OK
+	Content-Type: application/json
+
+		slicerjob.SlicerPresets
+
 */
 package main
 
